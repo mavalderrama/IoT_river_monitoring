@@ -28,6 +28,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /*---------------------------------------------------------------------------*/
+/*Headers Needed by Contiki and Zolertia*/
 #include "contiki-conf.h"
 #include "rpl/rpl-private.h"
 #include "mqtt.h"
@@ -54,12 +55,14 @@
 /* Our header */
 #include "smar2c.h"
 
+/* Signals to be sended between Threads*/
 process_event_t sLevel;
 process_event_t sFlow;
 process_event_t sTemp;
 /*---------------------------------------------------------------------------*/
 /*
  * MQTT broker address
+ * This IP address is defined in project-conf.h
  */
 static const char *broker_ip = MQTT_DEMO_BROKER_IP_ADDR;
 /*---------------------------------------------------------------------------*/
@@ -111,12 +114,15 @@ static uint8_t state;
 #define NET_CONNECT_PERIODIC        (CLOCK_SECOND >> 2)
 #define NO_NET_LED_DURATION         (NET_CONNECT_PERIODIC >> 1)
 /*---------------------------------------------------------------------------*/
+/* Processes Definition
+ * At this point we need to define the processes to run in our programm
+ */ 
 PROCESS_NAME(mqtt_demo_process);
 PROCESS_NAME(lvl_process);
 PROCESS_NAME(buzzer_process);
 PROCESS_NAME(flow_process);
 PROCESS_NAME(temp_process);
-
+/* This statement is for start our processes */
 AUTOSTART_PROCESSES(&mqtt_demo_process,&lvl_process,&buzzer_process,&flow_process,&temp_process);
 /*---------------------------------------------------------------------------*/
 /**
