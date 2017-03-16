@@ -33,9 +33,6 @@ static struct ctimer ct; //Publish timer
 static struct etimer et_flow; //Polling time for Flow process
 static struct etimer et_temp; //Polling time for Temperature process
 /*---------------------------------------------------------------------------*/
-static char *buf_ptr;
-static uint16_t seq_nr_value = 0;
-/*---------------------------------------------------------------------------*/
 /*Configuration Structure*/
 static mqtt_client_config_t conf;
 /*---------------------------------------------------------------------------*/
@@ -59,12 +56,22 @@ PROCESS (flow_process, "Water flow process");
 PROCESS (temp_process, "Temperature process");
 AUTOSTART_PROCESSES(&mqtt_demo_process,&lvl_process,&buzzer_process,&flow_process,&temp_process);//This is used for start our process
 /*---------------------------------------------------------------------------*/
+/*Check this later*/
+//TODO: Check this pointers for comment
+static char *buf_ptr;
+static uint16_t seq_nr_value = 0;
+/*---------------------------------------------------------------------------*/
+/*this is the string we send to the broker in JSON format*/
+extern char tx_json_string;
+/*---------------------------------------------------------------------------*/
+/*This function is used for turn off the leds on demand*/
 static void
 publish_led_off(void *d)
 {
   leds_off(LEDS_GREEN);
 }
 /*---------------------------------------------------------------------------*/
+/*This is the way we manage a received publish from cloud*/
 static void
 pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
             uint16_t chunk_len)
@@ -146,7 +153,7 @@ static int
 construct_pub_topic(void)
 {
   //int len = snprintf(pub_topic, BUFFER_SIZE, "Specific Ubidots API requirement","Identifier Topic Source");
-  //Take Care BUFFER_SIZE is more larger than your topic string
+  //Take Care BUFFER_SIZE it's more larger than your topic string
   int len = snprintf(pub_topic, BUFFER_SIZE, "/v1.6/devices/%s","nodo1");
   
   if(len < 0 || len >= BUFFER_SIZE) {
@@ -157,11 +164,12 @@ construct_pub_topic(void)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/*This function creates a topic in our mote*/
 static int
 construct_sub_topic(void)
 {
   int len = snprintf(sub_topic, BUFFER_SIZE, "zolertia/cmd/%s",
-                     conf.cmd_type);
+                     conf.cmd_type); //In this particular case our topic is LEDS
   if(len < 0 || len >= BUFFER_SIZE) {
     printf("Sub Topic too large: %d, Buffer %d\n", len, BUFFER_SIZE);
     return 0;
@@ -172,6 +180,7 @@ construct_sub_topic(void)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/*This function creates an ID based in the client IP*/
 static int
 construct_client_id(void)
 {
@@ -189,6 +198,7 @@ construct_client_id(void)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/*This function is a first stage config process started by "mqtt_demo_process"*/
 static void
 update_config(void)
 {
@@ -213,7 +223,7 @@ update_config(void)
   /* Reset the counter */
   seq_nr_value = 0;
 
-  state = STATE_INIT;
+  state = STATE_INIT;//Initial state for FSM
 
   /*
    * Schedule next timer event ASAP
@@ -315,7 +325,9 @@ static void publish(uint16_t value1,char *event_name1,uint16_t value2,char *even
   len = snprintf(buf_ptr, remaining, ",\"ADC3\":\"%u\"", aux);*/
   
   //aux = value;
-  len = snprintf(buf_ptr, remaining, "{\"%s\":%u,\"%s\":%u,\"%s\":%u}",event_name1,value1,event_name2,value2,event_name3,value3);
+  //len = snprintf(buf_ptr, remaining, "{\"%s\":%u,\"%s\":%u,\"%s\":%u}",event_name1,value1,event_name2,value2,event_name3,value3);
+  /*If you modify this line please check */
+  len = snprintf(buf_ptr, remaining, tx_json_string,event_name1,value1,event_name2,value2,event_name3,value3);
   
 
   remaining -= len;

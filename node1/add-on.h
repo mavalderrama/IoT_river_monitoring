@@ -82,3 +82,8 @@ typedef struct mqtt_client_config {
   clock_time_t pub_interval;
   uint16_t broker_port;
 } mqtt_client_config_t;
+/*---------------------------------------------------------------------------*/
+/*this is the string we send to the broker in JSON format
+ * if you need to modify this JSON, please validate the format with online tools or whatever.
+*/
+char tx_json_string[] = "{\"%s\":%u,\"%s\":%u,\"%s\":%u}";//{"Topic1":value1,"Topic2":value2,"Topic3":value3}
