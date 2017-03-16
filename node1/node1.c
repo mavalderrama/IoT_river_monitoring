@@ -1,142 +1,15 @@
-/*
- * Copyright (c) 2014, Texas Instruments Incorporated - http://www.ti.com/
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the copyright holder nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE
- * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
- * OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-/*---------------------------------------------------------------------------*/
-#include "contiki-conf.h"
-#include "rpl/rpl-private.h"
-#include "mqtt.h"
-#include "net/rpl/rpl.h"
-#include "net/ip/uip.h"
-#include "net/ipv6/uip-icmp6.h"
-#include "net/ipv6/sicslowpan.h"
-#include "sys/etimer.h"
-#include "sys/ctimer.h"
-#include "lib/sensors.h"
-#include "dev/leds.h"
-
-#if CONTIKI_TARGET_ZOUL
-#include "dev/adc-zoul.h"
-#include "dev/zoul-sensors.h"
-#else
-#include "dev/adxl345.h"
-#include "dev/i2cmaster.h"
-#include "dev/tmp102.h"
-#endif
-
-#include <string.h>
-
-/* Our header */
-#include "smar2c.h"
-
-process_event_t sLevel;
-process_event_t sFlow;
-process_event_t sTemp;
+#include "add-on.h"
 /*---------------------------------------------------------------------------*/
 /*
  * MQTT broker address
  */
 static const char *broker_ip = MQTT_DEMO_BROKER_IP_ADDR;
 /*---------------------------------------------------------------------------*/
-/*
- * A timeout used when waiting for something to happen (e.g. to connect or to
- * disconnect)
- */
-#define STATE_MACHINE_PERIODIC     (CLOCK_SECOND >> 1)
-/*---------------------------------------------------------------------------*/
-/* Provide visible feedback via LEDS during various states */
-/* When connecting to broker */
-#define CONNECTING_LED_DURATION    (CLOCK_SECOND >> 2)
-
-/* Each time we try to publish */
-#define PUBLISH_LED_ON_DURATION    (CLOCK_SECOND)
-/*---------------------------------------------------------------------------*/
-/* Connections and reconnections */
-#define RETRY_FOREVER              0xFF
-#define RECONNECT_INTERVAL         (CLOCK_SECOND * 2)
-
-/*
- * Number of times to try reconnecting to the broker.
- * Can be a limited number (e.g. 3, 10 etc) or can be set to RETRY_FOREVER
- */
-#define RECONNECT_ATTEMPTS         RETRY_FOREVER
-#define CONNECTION_STABLE_TIME     (CLOCK_SECOND * 5)
-/*---------------------------------------------------------------------------*/
 static struct timer connection_life;
 static uint8_t connect_attempt;
 /*---------------------------------------------------------------------------*/
-/* Various states */
+/*Actual state variable*/
 static uint8_t state;
-
-#define STATE_INIT                    0
-#define STATE_REGISTERED              1
-#define STATE_CONNECTING              2
-#define STATE_CONNECTED               3
-#define STATE_PUBLISHING              4
-#define STATE_DISCONNECTED            5
-#define STATE_NEWCONFIG               6
-#define STATE_CONFIG_ERROR         0xFE
-#define STATE_ERROR                0xFF
-/*---------------------------------------------------------------------------*/
-#define CONFIG_EVENT_TYPE_ID_LEN     32
-#define CONFIG_CMD_TYPE_LEN           8
-#define CONFIG_IP_ADDR_STR_LEN       64
-/*---------------------------------------------------------------------------*/
-/* A timeout used when waiting to connect to a network */
-#define NET_CONNECT_PERIODIC        (CLOCK_SECOND >> 2)
-#define NO_NET_LED_DURATION         (NET_CONNECT_PERIODIC >> 1)
-/*---------------------------------------------------------------------------*/
-PROCESS_NAME(mqtt_demo_process);
-PROCESS_NAME(lvl_process);
-PROCESS_NAME(buzzer_process);
-PROCESS_NAME(flow_process);
-PROCESS_NAME(temp_process);
-
-AUTOSTART_PROCESSES(&mqtt_demo_process,&lvl_process,&buzzer_process,&flow_process,&temp_process);
-/*---------------------------------------------------------------------------*/
-/**
- * \brief Data structure declaration for the MQTT client configuration
- */
-
-
-char *vibracion = "Vibracion";
-char *flujo = "Flujo";
-char *nivel = "Nivel";
-char *humedad = "Humedad Relativa";
-char *temp = "Temperatura";
-
-typedef struct mqtt_client_config {
-  //char event_type_id[CONFIG_EVENT_TYPE_ID_LEN];
-  char broker_ip[CONFIG_IP_ADDR_STR_LEN];
-  char cmd_type[CONFIG_CMD_TYPE_LEN];
-  clock_time_t pub_interval;
-  uint16_t broker_port;
-} mqtt_client_config_t;
 /*---------------------------------------------------------------------------*/
 /*
  * Buffers for Client ID and Topic.
@@ -163,12 +36,25 @@ static uint16_t seq_nr_value = 0;
 /*---------------------------------------------------------------------------*/
 static mqtt_client_config_t conf;
 /*---------------------------------------------------------------------------*/
+char *vibracion = "Vibracion";
+char *flujo = "Flujo";
+char *nivel = "Nivel";
+char *humedad = "Humedad Relativa";
+char *temp = "Temperatura";
+/*---------------------------------------------------------------------------*/
+process_event_t sLevel;
+process_event_t sFlow;
+process_event_t sTemp;
+/*---------------------------------------------------------------------------*/
+
 PROCESS(mqtt_demo_process, "MQTT Demo");
 PROCESS (lvl_process, "Water level process");
 PROCESS (buzzer_process, "Buzzer process");
 PROCESS (flow_process, "Water flow process");
 PROCESS (temp_process, "Temperature process");
+AUTOSTART_PROCESSES(&mqtt_demo_process,&lvl_process,&buzzer_process,&flow_process,&temp_process);
 /*---------------------------------------------------------------------------*/
+
 int
 ipaddr_sprintf(char *buf, uint8_t buf_len, const uip_ipaddr_t *addr)
 {
@@ -391,7 +277,7 @@ subscribe(void)
 /*---------------------------------------------------------------------------*/
 static void publish(uint16_t value1,char *event_name1,uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
 {
-  int len;
+  int len = 0;
   //uint16_t aux;
   int remaining = APP_BUFFER_SIZE;
 
@@ -658,7 +544,6 @@ prelevel = 0;
   PROCESS_END();
 }
 
-
 PROCESS_THREAD (lvl_process, ev, data)
 {
   static uint8_t  thresholdY,
@@ -907,5 +792,3 @@ PROCESS_THREAD (flow_process, ev, data)
    */
   PROCESS_END();
 }
-
-

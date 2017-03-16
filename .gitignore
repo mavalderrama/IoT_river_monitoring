@@ -4,3 +4,5 @@ node1/Jari.c
 *.elf
 *.hex
 *.d
+
+TestBuild/

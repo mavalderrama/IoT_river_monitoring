@@ -1,8 +1,9 @@
 DEFINES+=PROJECT_CONF_H=\"project-conf.h\"
 
 # all: mqtt-example
-all: node1
-
+CONTIKI_PROJECT = node1
+all: $(CONTIKI_PROJECT)
+PROJECT_SOURCEFILES += add-on.c
 APPS += mqtt
 
 # Linker size optimization
