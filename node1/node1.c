@@ -1,7 +1,7 @@
 #include "add-on.h"
 /*---------------------------------------------------------------------------*/
 /*
- * MQTT broker address
+ * MQTT broker IP address
  */
 static const char *broker_ip = MQTT_DEMO_BROKER_IP_ADDR;
 /*---------------------------------------------------------------------------*/
@@ -16,7 +16,7 @@ static uint8_t state;
  * Make sure they are large enough to hold the entire respective string
  */
 static char client_id[BUFFER_SIZE];
-static char pub_topic[BUFFER_SIZE];
+static char pub_topic[BUFFER_SIZE]; //Topic to publish in MQTT Broker
 static char sub_topic[BUFFER_SIZE];
 /*---------------------------------------------------------------------------*/
 /*
@@ -54,32 +54,6 @@ PROCESS (flow_process, "Water flow process");
 PROCESS (temp_process, "Temperature process");
 AUTOSTART_PROCESSES(&mqtt_demo_process,&lvl_process,&buzzer_process,&flow_process,&temp_process);
 /*---------------------------------------------------------------------------*/
-
-int
-ipaddr_sprintf(char *buf, uint8_t buf_len, const uip_ipaddr_t *addr)
-{
-  uint16_t a;
-  uint8_t len = 0;
-  int i, f;
-  for(i = 0, f = 0; i < sizeof(uip_ipaddr_t); i += 2) {
-    a = (addr->u8[i] << 8) + addr->u8[i + 1];
-    if(a == 0 && f >= 0) {
-      if(f++ == 0) {
-        len += snprintf(&buf[len], buf_len - len, "::");
-      }
-    } else {
-      if(f > 0) {
-        f = -1;
-      } else if(i > 0) {
-        len += snprintf(&buf[len], buf_len - len, ":");
-      }
-      len += snprintf(&buf[len], buf_len - len, "%x", a);
-    }
-  }
-
-  return len;
-}
-/*---------------------------------------------------------------------------*/
 static void
 publish_led_off(void *d)
 {
@@ -111,6 +85,8 @@ pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
   }
 }
 /*---------------------------------------------------------------------------*/
+/*MQTT event handler*/
+/*In this function the FSM shows you the actual state of the connection with the broker*/
 static void
 mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
 {
@@ -139,8 +115,7 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
           msg_ptr->topic, msg_ptr->payload_length);
     }
 
-    pub_handler(msg_ptr->topic, strlen(msg_ptr->topic), msg_ptr->payload_chunk,
-                msg_ptr->payload_length);
+    pub_handler(msg_ptr->topic, strlen(msg_ptr->topic), msg_ptr->payload_chunk,msg_ptr->payload_length);
     break;
   }
   case MQTT_EVENT_SUBACK: {
@@ -161,9 +136,12 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
   }
 }
 /*---------------------------------------------------------------------------*/
+/*Topic creation*/
 static int
 construct_pub_topic(void)
 {
+  //int len = snprintf(pub_topic, BUFFER_SIZE, "Specific Ubidots API requirement","Identifier Topic Source");
+  //Take Care BUFFER_SIZE is more larger than your topic string
   int len = snprintf(pub_topic, BUFFER_SIZE, "/v1.6/devices/%s","nodo1");
   
   if(len < 0 || len >= BUFFER_SIZE) {

@@ -6,3 +6,7 @@ node1/Jari.c
 *.d
 
 TestBuild/
+
+node1/obj_zoul/
+
+*.map

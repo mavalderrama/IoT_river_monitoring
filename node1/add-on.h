@@ -51,7 +51,7 @@
 #define CONNECTION_STABLE_TIME     (CLOCK_SECOND * 5)
 
 /*---------------------------------------------------------------------------*/
-/* Various states for FSM*/
+/* States for MQTT FSM*/
 
 #define STATE_INIT                    0
 #define STATE_REGISTERED              1
