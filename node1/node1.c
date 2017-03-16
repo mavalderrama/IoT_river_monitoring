@@ -27,32 +27,37 @@ static struct mqtt_connection conn;
 static char app_buffer[APP_BUFFER_SIZE];
 /*---------------------------------------------------------------------------*/
 static struct mqtt_message *msg_ptr = 0;
-static struct etimer publish_periodic_timer;
-static struct ctimer ct;
-static struct etimer et_flow;
-static struct etimer et_temp;
+/*Timers Declaration*/
+static struct etimer publish_periodic_timer; //This timer triggers a publish to a topic periodically
+static struct ctimer ct; //Publish timer
+static struct etimer et_flow; //Polling time for Flow process
+static struct etimer et_temp; //Polling time for Temperature process
+/*---------------------------------------------------------------------------*/
 static char *buf_ptr;
 static uint16_t seq_nr_value = 0;
 /*---------------------------------------------------------------------------*/
+/*Configuration Structure*/
 static mqtt_client_config_t conf;
 /*---------------------------------------------------------------------------*/
+/*Topic Name Declaration*/
 char *vibracion = "Vibracion";
 char *flujo = "Flujo";
 char *nivel = "Nivel";
 char *humedad = "Humedad Relativa";
 char *temp = "Temperatura";
 /*---------------------------------------------------------------------------*/
+/*Signal names for every process*/
 process_event_t sLevel;
 process_event_t sFlow;
 process_event_t sTemp;
 /*---------------------------------------------------------------------------*/
-
+/*Process and process name declaration*/
 PROCESS(mqtt_demo_process, "MQTT Demo");
 PROCESS (lvl_process, "Water level process");
 PROCESS (buzzer_process, "Buzzer process");
 PROCESS (flow_process, "Water flow process");
 PROCESS (temp_process, "Temperature process");
-AUTOSTART_PROCESSES(&mqtt_demo_process,&lvl_process,&buzzer_process,&flow_process,&temp_process);
+AUTOSTART_PROCESSES(&mqtt_demo_process,&lvl_process,&buzzer_process,&flow_process,&temp_process);//This is used for start our process
 /*---------------------------------------------------------------------------*/
 static void
 publish_led_off(void *d)
