@@ -61,8 +61,10 @@ AUTOSTART_PROCESSES(&mqtt_demo_process,&lvl_process,&buzzer_process,&flow_proces
 static char *buf_ptr;
 static uint16_t seq_nr_value = 0;
 /*---------------------------------------------------------------------------*/
-/*this is the string we send to the broker in JSON format*/
-extern char tx_json_string;
+/*this is the string we send to the broker in JSON format
+ * if you need to modify this JSON, please validate the format with online tools or whatever.
+*/
+char tx_json_string[] = "{\"%s\":%u,\"%s\":%u,\"%s\":%u}";//{"Topic1":value1,"Topic2":value2,"Topic3":value3}
 /*---------------------------------------------------------------------------*/
 /*This function is used for turn off the leds on demand*/
 static void
@@ -102,16 +104,17 @@ pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
 static void
 mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
 {
+  printf("We are here in mqtt_event\n");
   switch(event) {
   case MQTT_EVENT_CONNECTED: {
     printf("APP - Application has a MQTT connection\n");
     timer_set(&connection_life, CONNECTION_STABLE_TIME);
     state = STATE_CONNECTED;
+    printf("state = STATE_CONNECTED\n");
     break;
   }
   case MQTT_EVENT_DISCONNECTED: {
     printf("APP - MQTT Disconnect. Reason %u\n", *((mqtt_event_t *)data));
-
     state = STATE_DISCONNECTED;
     process_poll(&mqtt_demo_process);
     break;
@@ -241,23 +244,17 @@ init_config()
 {
   /* Populate configuration with default values */
   memset(&conf, 0, sizeof(mqtt_client_config_t));
- /* memcpy(conf.event_type_id, DEFAULT_EVENT_TYPE_ID,
-         strlen(DEFAULT_EVENT_TYPE_ID));
-  memcpy(conf.event_type_id1, DEFAULT_EVENT_TYPE_ID,
-         strlen(DEFAULT_EVENT_TYPE_ID1));*/
   memcpy(conf.broker_ip, broker_ip, strlen(broker_ip));
   memcpy(conf.cmd_type, DEFAULT_SUBSCRIBE_CMD_TYPE, 4);
-
   conf.broker_port = DEFAULT_BROKER_PORT;
   conf.pub_interval = DEFAULT_PUBLISH_INTERVAL;
-
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/* Publish MQTT topic in IBM quickstart format */
 static void
 subscribe(void)
 {
-  /* Publish MQTT topic in IBM quickstart format */
   mqtt_status_t status;
 
   status = mqtt_subscribe(&conn, NULL, sub_topic, MQTT_QOS_LEVEL_0);
@@ -268,84 +265,42 @@ subscribe(void)
   }
 }
 /*---------------------------------------------------------------------------*/
-static void publish(uint16_t value1,char *event_name1,uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
+/* This function handle the publish mechanism to the broker
+ * The parameters of this function are the names and values to publish.
+*/
+//TODO: Change the list of parameter for a structure.
+static void
+publish(uint16_t value1,char *event_name1,
+uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
 {
-  int len = 0;
-  //uint16_t aux;
-  int remaining = APP_BUFFER_SIZE;
+  int len = 0;//This is the actual size of output buffer
+  int remaining = APP_BUFFER_SIZE;//This is the remaining size of the output buffer
 
-  seq_nr_value++;
-  buf_ptr = app_buffer;
+  seq_nr_value++;//IDK
+  buf_ptr = app_buffer;//This is the output buffer
 
- /* len = snprintf(buf_ptr, remaining,
-                 "{"
-                 "\"Level\":{"
-                 "\"myName\":\"%s\","
-                 "\"Seq no\":%d,"
-                 "\"Uptime (sec)\":%lu",
-                 BOARD_STRING, seq_nr_value, clock_seconds());*/
-
-  if(len < 0 || len >= remaining) {
-    printf("Buffer too short. Have %d, need %d + \\0\n", remaining, len);
-    return;
-  }
-
-  remaining -= len;
-  buf_ptr += len;
-
-  /* Put our Default route's string representation in a buffer */
-  /*char def_rt_str[64];
-  memset(def_rt_str, 0, sizeof(def_rt_str));
-  ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
-
-  len = snprintf(buf_ptr, remaining, ",\"Def Route\":\"%s\"",
-                 def_rt_str);
-
-  if(len < 0 || len >= remaining) {
-    printf("Buffer too short. Have %d, need %d + \\0\n", remaining, len);
-    return;
-  }
-
-  remaining -= len;
-  buf_ptr += len;
-  
-  /*aux = cc2538_temp_sensor.value(CC2538_SENSORS_VALUE_TYPE_CONVERTED);
-  len = snprintf(buf_ptr, remaining, ",\"Core Temp\":\"%u.%02u\"", aux / 1000, aux % 1000);
-
-  remaining -= len;
-  buf_ptr += len;
-
-  aux = adc_zoul.value(ZOUL_SENSORS_ADC1);
-  len = snprintf(buf_ptr, remaining, ",\"ADC1\":\"%u\"", aux);
-
-  remaining -= len;
-  buf_ptr += len;
-
-  aux = adc_zoul.value(ZOUL_SENSORS_ADC3);
-  len = snprintf(buf_ptr, remaining, ",\"ADC3\":\"%u\"", aux);*/
-  
-  //aux = value;
   //len = snprintf(buf_ptr, remaining, "{\"%s\":%u,\"%s\":%u,\"%s\":%u}",event_name1,value1,event_name2,value2,event_name3,value3);
-  /*If you modify this line please check */
+  /*If you modify the line below please check the JSON format with online tools or whatever*/
   len = snprintf(buf_ptr, remaining, tx_json_string,event_name1,value1,event_name2,value2,event_name3,value3);
-  
+  /*//This is a debug printf, please uncomment if you don't need it
+  printf(tx_json_string,event_name1,value1,event_name2,value2,event_name3,value3);*/
 
-  remaining -= len;
-  buf_ptr += len;
+  remaining -= len; //Substracting the actual size of the output buffer
+  buf_ptr += len; //Positioning the pointer at the end of the buffer
 
-  //len = snprintf(buf_ptr, remaining, "}}");
-
+  /*If our buffer exceed the maximun size our publish process end*/
   if(len < 0 || len >= remaining) {
     printf("Buffer too short. Have %d, need %d + \\0\n", remaining, len);
     return;
   }
-
+  //This function use the Radio to send our data
   mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 
   printf("APP - Publish to %s: %s\n", pub_topic, app_buffer);
 }
 /*---------------------------------------------------------------------------*/
+/*This function connects to the broker using the IP provided*/
 static void
 connect_to_broker(void)
 {
@@ -353,11 +308,16 @@ connect_to_broker(void)
   mqtt_connect(&conn, conf.broker_ip, conf.broker_port,
                conf.pub_interval * 3);
 
-  state = STATE_CONNECTING;
+  state = STATE_CONNECTING;//Actual state of the FSM
 }
 /*---------------------------------------------------------------------------*/
+/*This is the FSM
+ * Due to the lack of time, the input parameters are the values of our processes
+*/
+//TODO: Change the input parameters for an structure or a global thing.
 static void
-state_machine(uint16_t value1,char *event_name1,uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
+state_machine(uint16_t value1,char *event_name1,
+uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
 {
   switch(state) {
   case STATE_INIT:
@@ -369,7 +329,7 @@ state_machine(uint16_t value1,char *event_name1,uint16_t value2,char *event_name
     connect_attempt = 1;
 
     state = STATE_REGISTERED;
-    printf("Init\n");
+    //printf("Init\n");
 
     /* Notice there is no "break" here, it will continue to the
      * STATE_REGISTERED
@@ -387,9 +347,17 @@ state_machine(uint16_t value1,char *event_name1,uint16_t value2,char *event_name
       ctimer_set(&ct, NO_NET_LED_DURATION, publish_led_off, NULL);
     }
     etimer_set(&publish_periodic_timer, NET_CONNECT_PERIODIC);
-    return;
-    break;
-
+    if(state == STATE_CONNECTING)
+    {
+      state = STATE_CONNECTING;
+      printf("Connecting\n");
+    }
+    else
+    {
+      //printf("failure\n");
+      return;
+      break;
+    }
   case STATE_CONNECTING:
     leds_on(LEDS_GREEN);
     ctimer_set(&ct, CONNECTING_LED_DURATION, publish_led_off, NULL);
@@ -412,13 +380,13 @@ state_machine(uint16_t value1,char *event_name1,uint16_t value2,char *event_name
 
     if(mqtt_ready(&conn) && conn.out_buffer_sent) 
     {
-      /* Connected. Publish */
+      /* CONNECTED. Publish NOW!!!!!!!!!!! */
       if(state == STATE_CONNECTED) 
       {
         subscribe();
         state = STATE_PUBLISHING;
-
-      } else 
+      } 
+      else 
       {
         leds_on(LEDS_GREEN);
         printf("Publishing\n");
@@ -532,7 +500,6 @@ prelevel = 0;
             prelevel =  datum;
         }
         state_machine(prelevel,"Level",pretemp,"Temp",preflow,"Flow");
-        
     }
   }
 
