@@ -29,9 +29,9 @@ static char app_buffer[APP_BUFFER_SIZE];
 static struct mqtt_message *msg_ptr = 0;
 /*Timers Declaration*/
 static struct etimer publish_periodic_timer; //This timer triggers a publish to a topic periodically
-static struct ctimer ct; //Publish timer
-static struct etimer et_flow; //Polling time for Flow process
-static struct etimer et_temp; //Polling time for Temperature process
+static struct ctimer ct;                     //Publish timer
+static struct etimer et_flow;                //Polling time for Flow process
+static struct etimer et_temp;                //Polling time for Temperature process
 /*---------------------------------------------------------------------------*/
 /*Configuration Structure*/
 static mqtt_client_config_t conf;
@@ -47,14 +47,15 @@ char *temp = "Temperatura";
 process_event_t sLevel;
 process_event_t sFlow;
 process_event_t sTemp;
+signal_tag_tx_t ev_signals;
 /*---------------------------------------------------------------------------*/
 /*Process and process name declaration*/
 PROCESS(mqtt_demo_process, "MQTT Demo");
-PROCESS (lvl_process, "Water level process");
-PROCESS (buzzer_process, "Buzzer process");
-PROCESS (flow_process, "Water flow process");
-PROCESS (temp_process, "Temperature process");
-AUTOSTART_PROCESSES(&mqtt_demo_process,&lvl_process,&buzzer_process,&flow_process,&temp_process);//This is used for start our process
+PROCESS(lvl_process, "Water level process");
+PROCESS(buzzer_process, "Buzzer process");
+PROCESS(flow_process, "Water flow process");
+PROCESS(temp_process, "Temperature process");
+AUTOSTART_PROCESSES(&mqtt_demo_process, &lvl_process, &buzzer_process, &flow_process, &temp_process); //This is used for start our process
 /*---------------------------------------------------------------------------*/
 /*Check this later*/
 //TODO: Check this pointers for comment
@@ -64,7 +65,7 @@ static uint16_t seq_nr_value = 0;
 /*this is the string we send to the broker in JSON format
  * if you need to modify this JSON, please validate the format with online tools or whatever.
 */
-char tx_json_string[] = "{\"%s\":%u,\"%s\":%u,\"%s\":%u}";//{"Topic1":value1,"Topic2":value2,"Topic3":value3}
+//char tx_json_string[] = "{\"%s\":%u,\"%s\":%u,\"%s\":%u}";//{"Topic1":value1,"Topic2":value2,"Topic3":value3}
 /*---------------------------------------------------------------------------*/
 /*This function is used for turn off the leds on demand*/
 static void
@@ -79,19 +80,24 @@ pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
             uint16_t chunk_len)
 {
   printf("Pub Handler: topic='%s' (len=%u), chunk_len=%u\n", topic, topic_len,
-      chunk_len);
+         chunk_len);
 
   /* If we don't like the length, ignore */
-  if(topic_len != 17 || chunk_len != 1) {
+  if (topic_len != 17 || chunk_len != 1)
+  {
     printf("Incorrect topic or chunk len. Ignored\n");
     return;
   }
 
-  if(strncmp(&topic[13], "leds", 4) == 0) {
-    if(chunk[0] == '1') {
+  if (strncmp(&topic[13], "leds", 4) == 0)
+  {
+    if (chunk[0] == '1')
+    {
       leds_on(LEDS_RED);
       printf("Turning LED RED on!\n");
-    } else if(chunk[0] == '0') {
+    }
+    else if (chunk[0] == '0')
+    {
       leds_off(LEDS_RED);
       printf("Turning LED RED off!\n");
     }
@@ -105,43 +111,51 @@ static void
 mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
 {
   printf("We are here in mqtt_event\n");
-  switch(event) {
-  case MQTT_EVENT_CONNECTED: {
+  switch (event)
+  {
+  case MQTT_EVENT_CONNECTED:
+  {
     printf("APP - Application has a MQTT connection\n");
     timer_set(&connection_life, CONNECTION_STABLE_TIME);
     state = STATE_CONNECTED;
     printf("state = STATE_CONNECTED\n");
     break;
   }
-  case MQTT_EVENT_DISCONNECTED: {
+  case MQTT_EVENT_DISCONNECTED:
+  {
     printf("APP - MQTT Disconnect. Reason %u\n", *((mqtt_event_t *)data));
     state = STATE_DISCONNECTED;
     process_poll(&mqtt_demo_process);
     break;
   }
-  case MQTT_EVENT_PUBLISH: {
+  case MQTT_EVENT_PUBLISH:
+  {
     msg_ptr = data;
 
     /* Implement first_flag in publish message? */
-    if(msg_ptr->first_chunk) {
+    if (msg_ptr->first_chunk)
+    {
       msg_ptr->first_chunk = 0;
       printf("APP - Application received a publish on topic '%s'. Payload "
-          "size is %i bytes. Content:\n\n",
-          msg_ptr->topic, msg_ptr->payload_length);
+             "size is %i bytes. Content:\n\n",
+             msg_ptr->topic, msg_ptr->payload_length);
     }
 
-    pub_handler(msg_ptr->topic, strlen(msg_ptr->topic), msg_ptr->payload_chunk,msg_ptr->payload_length);
+    pub_handler(msg_ptr->topic, strlen(msg_ptr->topic), msg_ptr->payload_chunk, msg_ptr->payload_length);
     break;
   }
-  case MQTT_EVENT_SUBACK: {
+  case MQTT_EVENT_SUBACK:
+  {
     printf("APP - Application is subscribed to topic successfully\n");
     break;
   }
-  case MQTT_EVENT_UNSUBACK: {
+  case MQTT_EVENT_UNSUBACK:
+  {
     printf("APP - Application is unsubscribed to topic successfully\n");
     break;
   }
-  case MQTT_EVENT_PUBACK: {
+  case MQTT_EVENT_PUBACK:
+  {
     printf("APP - Publishing complete.\n");
     break;
   }
@@ -157,9 +171,10 @@ construct_pub_topic(void)
 {
   //int len = snprintf(pub_topic, BUFFER_SIZE, "Specific Ubidots API requirement","Identifier Topic Source");
   //Take Care BUFFER_SIZE it's more larger than your topic string
-  int len = snprintf(pub_topic, BUFFER_SIZE, "/v1.6/devices/%s","nodo1");
-  
-  if(len < 0 || len >= BUFFER_SIZE) {
+  int len = snprintf(pub_topic, BUFFER_SIZE, "/v1.6/devices/%s", "nodo1");
+
+  if (len < 0 || len >= BUFFER_SIZE)
+  {
     printf("Pub Topic too large: %d, Buffer %d\n", len, BUFFER_SIZE);
     return 0;
   }
@@ -173,7 +188,8 @@ construct_sub_topic(void)
 {
   int len = snprintf(sub_topic, BUFFER_SIZE, "zolertia/cmd/%s",
                      conf.cmd_type); //In this particular case our topic is LEDS
-  if(len < 0 || len >= BUFFER_SIZE) {
+  if (len < 0 || len >= BUFFER_SIZE)
+  {
     printf("Sub Topic too large: %d, Buffer %d\n", len, BUFFER_SIZE);
     return 0;
   }
@@ -193,7 +209,8 @@ construct_client_id(void)
                      linkaddr_node_addr.u8[6], linkaddr_node_addr.u8[7]);
 
   /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
-  if(len < 0 || len >= BUFFER_SIZE) {
+  if (len < 0 || len >= BUFFER_SIZE)
+  {
     printf("Client ID: %d, Buffer %d\n", len, BUFFER_SIZE);
     return 0;
   }
@@ -205,19 +222,22 @@ construct_client_id(void)
 static void
 update_config(void)
 {
-  if(construct_client_id() == 0) {
+  if (construct_client_id() == 0)
+  {
     /* Fatal error. Client ID larger than the buffer */
     state = STATE_CONFIG_ERROR;
     return;
   }
 
-  if(construct_sub_topic() == 0) {
+  if (construct_sub_topic() == 0)
+  {
     /* Fatal error. Topic larger than the buffer */
     state = STATE_CONFIG_ERROR;
     return;
   }
 
-  if(construct_pub_topic() == 0) {
+  if (construct_pub_topic() == 0)
+  {
     /* Fatal error. Topic larger than the buffer */
     state = STATE_CONFIG_ERROR;
     return;
@@ -226,7 +246,7 @@ update_config(void)
   /* Reset the counter */
   seq_nr_value = 0;
 
-  state = STATE_INIT;//Initial state for FSM
+  state = STATE_INIT; //Initial state for FSM
 
   /*
    * Schedule next timer event ASAP
@@ -260,7 +280,8 @@ subscribe(void)
   status = mqtt_subscribe(&conn, NULL, sub_topic, MQTT_QOS_LEVEL_0);
 
   printf("APP - Subscribing to %s\n", sub_topic);
-  if(status == MQTT_STATUS_OUT_QUEUE_FULL) {
+  if (status == MQTT_STATUS_OUT_QUEUE_FULL)
+  {
     printf("APP - Tried to subscribe but command queue was full!\n");
   }
 }
@@ -269,27 +290,47 @@ subscribe(void)
  * The parameters of this function are the names and values to publish.
 */
 //TODO: Change the list of parameter for a structure.
-static void
-publish(uint16_t value1,char *event_name1,
-uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
+//static void publish(uint16_t value1,char *event_name1,uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
+static void publish()
 {
-  int len = 0;//This is the actual size of output buffer
-  int remaining = APP_BUFFER_SIZE;//This is the remaining size of the output buffer
+  int len = 0;                     //This is the actual size of output buffer
+  int remaining = APP_BUFFER_SIZE; //This is the remaining size of the output buffer
 
-  seq_nr_value++;//IDK
-  buf_ptr = app_buffer;//This is the output buffer
+  seq_nr_value++;       //IDK
+  buf_ptr = app_buffer; //This is the output buffer
 
+  int elements_in_struct, size_struct;
+  char *tempc = &ev_signals;
+  uint16_t *tempi = &ev_signals;
+  tempi = tempi + 10;
+  size_struct = sizeof(ev_signals);
+  elements_in_struct = size_struct / (BUFFER_SIZE_TAGNAME + sizeof(uint16_t)); //take care about this type
   //len = snprintf(buf_ptr, remaining, "{\"%s\":%u,\"%s\":%u,\"%s\":%u}",event_name1,value1,event_name2,value2,event_name3,value3);
   /*If you modify the line below please check the JSON format with online tools or whatever*/
-  len = snprintf(buf_ptr, remaining, tx_json_string,event_name1,value1,event_name2,value2,event_name3,value3);
-  /*//This is a debug printf, please uncomment if you don't need it
-  printf(tx_json_string,event_name1,value1,event_name2,value2,event_name3,value3);*/
-
-  remaining -= len; //Substracting the actual size of the output buffer
-  buf_ptr += len; //Positioning the pointer at the end of the buffer
+  //len = snprintf(buf_ptr, remaining, tx_json_string,event_name1,value1,event_name2,value2,event_name3,value3);
+    int i;
+    for (i = 0; i < elements_in_struct; i++)
+    {
+      if (i == 0)
+      {
+        if(elements_in_struct == 1)
+          len = snprintf(buf_ptr, remaining, "{\"%s\":%u}", tempc, *tempi);
+        else
+          len = snprintf(buf_ptr, remaining, "{\"%s\":%u,", tempc, *tempi);
+      }
+      else if (i == elements_in_struct - 1)
+        len = snprintf(buf_ptr, remaining, "\"%s\":%u}", tempc, *tempi);
+      else
+        len = snprintf(buf_ptr, remaining, "\"%s\":%u,", tempc, *tempi);
+      remaining -= len; //Substracting the actual size of the output buffer
+      buf_ptr += len;   //Positioning the pointer at the end of the buffer
+      tempc = tempc + BUFFER_SIZE_TAGNAME + 2;
+      tempi = tempi + 11;
+    }
 
   /*If our buffer exceed the maximun size our publish process end*/
-  if(len < 0 || len >= remaining) {
+  if (len < 0 || len >= remaining)
+  {
     printf("Buffer too short. Have %d, need %d + \\0\n", remaining, len);
     return;
   }
@@ -308,18 +349,20 @@ connect_to_broker(void)
   mqtt_connect(&conn, conf.broker_ip, conf.broker_port,
                conf.pub_interval * 3);
 
-  state = STATE_CONNECTING;//Actual state of the FSM
+  state = STATE_CONNECTING; //Actual state of the FSM
 }
 /*---------------------------------------------------------------------------*/
 /*This is the FSM
  * Due to the lack of time, the input parameters are the values of our processes
 */
 //TODO: Change the input parameters for an structure or a global thing.
-static void
+/*static void
 state_machine(uint16_t value1,char *event_name1,
-uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
+uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)*/
+static void state_machine()
 {
-  switch(state) {
+  switch (state)
+  {
   case STATE_INIT:
     /* If we have just been configured register MQTT connection */
     mqtt_register(&conn, &mqtt_demo_process, client_id, mqtt_event,
@@ -329,35 +372,26 @@ uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
     connect_attempt = 1;
 
     state = STATE_REGISTERED;
-    //printf("Init\n");
+  //printf("Init\n");
 
-    /* Notice there is no "break" here, it will continue to the
+  /* Notice there is no "break" here, it will continue to the
      * STATE_REGISTERED
      */
   case STATE_REGISTERED:
-    if(uip_ds6_get_global(ADDR_PREFERRED) != NULL) 
+    if (uip_ds6_get_global(ADDR_PREFERRED) != NULL)
     {
       /* Registered and with a public IP. Connect */
       printf("Registered. Connect attempt %u\n", connect_attempt);
       connect_to_broker();
-    } 
-    else 
+    }
+    else
     {
       leds_on(LEDS_GREEN);
       ctimer_set(&ct, NO_NET_LED_DURATION, publish_led_off, NULL);
     }
     etimer_set(&publish_periodic_timer, NET_CONNECT_PERIODIC);
-    if(state == STATE_CONNECTING)
-    {
-      state = STATE_CONNECTING;
-      printf("Connecting\n");
-    }
-    else
-    {
-      //printf("failure\n");
       return;
       break;
-    }
   case STATE_CONNECTING:
     leds_on(LEDS_GREEN);
     ctimer_set(&ct, CONNECTING_LED_DURATION, publish_led_off, NULL);
@@ -366,11 +400,12 @@ uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
     break;
 
   case STATE_CONNECTED:
-    /* Notice there's no "break" here, it will continue to subscribe */
+  /* Notice there's no "break" here, it will continue to subscribe */
 
   case STATE_PUBLISHING:
     /* If the timer expired, the connection is stable. */
-    if(timer_expired(&connection_life)) {
+    if (timer_expired(&connection_life))
+    {
       /*
        * Intentionally using 0 here instead of 1: We want RECONNECT_ATTEMPTS
        * attempts if we disconnect after a successful connect
@@ -378,28 +413,28 @@ uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
       connect_attempt = 0;
     }
 
-    if(mqtt_ready(&conn) && conn.out_buffer_sent) 
+    if (mqtt_ready(&conn) && conn.out_buffer_sent)
     {
       /* CONNECTED. Publish NOW!!!!!!!!!!! */
-      if(state == STATE_CONNECTED) 
+      if (state == STATE_CONNECTED)
       {
         subscribe();
         state = STATE_PUBLISHING;
-      } 
-      else 
+      }
+      else
       {
         leds_on(LEDS_GREEN);
         printf("Publishing\n");
         ctimer_set(&ct, PUBLISH_LED_ON_DURATION, publish_led_off, NULL);
-        publish(value1,event_name1,value2,event_name2,value3,event_name3);
+        //publish(value1,event_name1,value2,event_name2,value3,event_name3);
+        publish();
       }
       etimer_set(&publish_periodic_timer, conf.pub_interval);
 
       /* Return here so we don't end up rescheduling the timer */
       return;
-
-    } 
-    else 
+    }
+    else
     {
       /*
        * Our publish timer fired, but some MQTT packet is already in flight
@@ -411,21 +446,21 @@ uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
        * packet after retries, or to timeout and notify us.
        */
       printf("Publishing... (MQTT state=%d, q=%u)\n", conn.state,
-          conn.out_queue_full);
+             conn.out_queue_full);
     }
     break;
 
   case STATE_DISCONNECTED:
     printf("Disconnected\n");
-    if(connect_attempt < RECONNECT_ATTEMPTS ||
-       RECONNECT_ATTEMPTS == RETRY_FOREVER) {
+    if (connect_attempt < RECONNECT_ATTEMPTS ||
+        RECONNECT_ATTEMPTS == RETRY_FOREVER)
+    {
       /* Disconnect and backoff */
       clock_time_t interval;
       mqtt_disconnect(&conn);
       connect_attempt++;
 
-      interval = connect_attempt < 3 ? RECONNECT_INTERVAL << connect_attempt :
-        RECONNECT_INTERVAL << 3;
+      interval = connect_attempt < 3 ? RECONNECT_INTERVAL << connect_attempt : RECONNECT_INTERVAL << 3;
 
       printf("Disconnected. Attempt %u in %lu ticks\n", connect_attempt, interval);
 
@@ -433,8 +468,9 @@ uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
 
       state = STATE_REGISTERED;
       return;
-
-    } else {
+    }
+    else
+    {
       /* Max reconnect attempts reached. Enter error state */
       state = STATE_ERROR;
       printf("Aborting connection after %u attempts\n", connect_attempt - 1);
@@ -460,62 +496,59 @@ uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
 PROCESS_THREAD(mqtt_demo_process, ev, data)
 {
   PROCESS_BEGIN();
-static uint16_t preflow,pretemp,prelevel;
-preflow = 0;
-pretemp = 0;
-prelevel = 0;
   //printf("MQTT Demo Process\n");
 
-  if(init_config() != 1) {
+  if (init_config() != 1)
+  {
     PROCESS_EXIT();
   }
 
-   static uint16_t datum;
+  static uint16_t datum;
 
   /* These are variables to store strings for each sending process  */
-  
-  //static char *sender_p;
-  static uint8_t i;
-  
+  snprintf(ev_signals.ev_tag1, BUFFER_SIZE_TAGNAME, "Flow");
+  snprintf(ev_signals.ev_tag2, BUFFER_SIZE_TAGNAME, "Level");
+  snprintf(ev_signals.ev_tag3, BUFFER_SIZE_TAGNAME, "Temp");
   update_config();
 
-  while(1)
+  while (1)
   {
     PROCESS_YIELD();
 
-    if((ev == PROCESS_EVENT_TIMER && data == &publish_periodic_timer) ||
-    ev == PROCESS_EVENT_POLL || ev == sFlow || ev == sTemp || ev == sLevel)
+    if ((ev == PROCESS_EVENT_TIMER && data == &publish_periodic_timer) ||
+        ev == PROCESS_EVENT_POLL || ev == sFlow || ev == sTemp || ev == sLevel)
     {
-        datum = *((uint16_t *)data);
-        if (ev == sFlow)
-        {
-            preflow = datum;
-        }
-        else if (ev == sTemp)
-        {
-            pretemp = datum;
-        }
-        else if (ev == sLevel)
-        {
-            prelevel =  datum;
-        }
-        state_machine(prelevel,"Level",pretemp,"Temp",preflow,"Flow");
+      datum = *((uint16_t *)data);
+      if (ev == sFlow)
+      {
+        ev_signals.val1 = datum;
+      }
+      else if (ev == sLevel)
+      {
+        ev_signals.val2 = datum;
+      }
+      else if (ev == sTemp)
+      {
+        ev_signals.val3 = datum;
+      }
+      state_machine();
+      //state_machine(prelevel,"Level",pretemp,"Temp",preflow,"Flow");
     }
   }
 
   PROCESS_END();
 }
 
-PROCESS_THREAD (lvl_process, ev, data)
+PROCESS_THREAD(lvl_process, ev, data)
 {
-  static uint8_t  thresholdY,
-                  thresholdR;
+  static uint8_t thresholdY,
+      thresholdR;
   static uint16_t lvl_counter;
 
   /* Every process start with this macro, we tell the system this is the start
    * of the thread
    */
-  PROCESS_BEGIN ();
+  PROCESS_BEGIN();
   /* Create a pointer to the data, as we are expecting a string we use "char" */
   //static char *parent;
   //parent = (char * )data;
@@ -523,19 +556,19 @@ PROCESS_THREAD (lvl_process, ev, data)
   //printf ("Water level process started by %s\n", parent);
 
   /* We need to allocate a numeric process ID to our process */
-  sLevel = process_alloc_event ();
+  sLevel = process_alloc_event();
 
   lvl_counter = NORMAL_LEVEL;
   thresholdY = YELLOW_TRESHOLD;
   thresholdR = RED_TRESHOLD;
 
   /* Start the user button using the "SENSORS_ACTIVATE" macro */
-  SENSORS_ACTIVATE (button_sensor);
+  SENSORS_ACTIVATE(button_sensor);
 
-  button_sensor.configure (BUTTON_SENSOR_CONFIG_TYPE_INTERVAL, CLOCK_SECOND);
+  button_sensor.configure(BUTTON_SENSOR_CONFIG_TYPE_INTERVAL, CLOCK_SECOND);
 
   /* Send turn off buzzer */
-  process_post ( &buzzer_process, sLevel, &thresholdY );
+  process_post(&buzzer_process, sLevel, &thresholdY);
   //leds_on (LEDS_GREEN);   /* normal level */
 
   /* And now we wait for the button_sensor process to inform us about the water
@@ -544,25 +577,25 @@ PROCESS_THREAD (lvl_process, ev, data)
 
   while (1)
   {
-    PROCESS_YIELD ();
+    PROCESS_YIELD();
 
     if (ev == sensors_event && data == &button_sensor)
     {
       if (button_sensor.value(BUTTON_SENSOR_VALUE_TYPE_LEVEL) ==
-                              BUTTON_SENSOR_PRESSED_LEVEL)
+          BUTTON_SENSOR_PRESSED_LEVEL)
       {
         lvl_counter++;
         if (lvl_counter >= thresholdY)
         {
-          leds_off (LEDS_GREEN);
-          leds_on (LEDS_YELLOW);
+          leds_off(LEDS_GREEN);
+          leds_on(LEDS_YELLOW);
         }
         if (lvl_counter >= thresholdR)
         {
-          leds_off (LEDS_YELLOW);
-          leds_on (LEDS_RED);
+          leds_off(LEDS_YELLOW);
+          leds_on(LEDS_RED);
           /* Activate buzzer process */
-          process_post ( &buzzer_process, sLevel, &thresholdR );
+          process_post(&buzzer_process, sLevel, &thresholdR);
         }
       }
     }
@@ -571,26 +604,26 @@ PROCESS_THREAD (lvl_process, ev, data)
       lvl_counter--;
       if (lvl_counter < thresholdR)
       {
-        leds_off (LEDS_RED);
-        leds_on (LEDS_YELLOW);
+        leds_off(LEDS_RED);
+        leds_on(LEDS_YELLOW);
       }
       if (lvl_counter < thresholdY)
       {
-        leds_off (LEDS_YELLOW);
-        leds_on (LEDS_GREEN);
-        //Deactivate buzzer process 
-        process_post ( &buzzer_process, sLevel, &thresholdY );
+        leds_off(LEDS_YELLOW);
+        leds_on(LEDS_GREEN);
+        //Deactivate buzzer process
+        process_post(&buzzer_process, sLevel, &thresholdY);
       }
     }
-    printf ( "Current water level = %u m\n", lvl_counter );
+    printf("Current water level = %u m\n", lvl_counter);
     /* Send level value to head node */
-    process_post ( &mqtt_demo_process, sLevel, &lvl_counter );
+    process_post(&mqtt_demo_process, sLevel, &lvl_counter);
   }
 
   /* This is the end of the process, we tell the system we are done.  Even if
    * we won't reach this due to the "while(...)" we need to include it
    */
-  PROCESS_END ();
+  PROCESS_END();
 }
 
 PROCESS_THREAD(buzzer_process, ev, data)
@@ -605,18 +638,12 @@ PROCESS_THREAD(buzzer_process, ev, data)
   /* This is a variable to store datum sent by other processes */
   static uint8_t datum;
 
-  /* These are variables to store strings for each sending process  */
-  static char *lvl_p = "level process";
-
-  /* This variable stores a string pointer */
-  static char *sender_p;
-
   /* We tell the system the application will drive the pin */
-  GPIO_SOFTWARE_CONTROL (BUZZER_PORT_BASE, BUZZER_PIN_MASK);
+  GPIO_SOFTWARE_CONTROL(BUZZER_PORT_BASE, BUZZER_PIN_MASK);
 
   /* And set as output, starting low */
-  GPIO_SET_OUTPUT (BUZZER_PORT_BASE, BUZZER_PIN_MASK);
-  GPIO_SET_PIN (BUZZER_PORT_BASE, BUZZER_PIN_MASK);
+  GPIO_SET_OUTPUT(BUZZER_PORT_BASE, BUZZER_PIN_MASK);
+  GPIO_SET_PIN(BUZZER_PORT_BASE, BUZZER_PIN_MASK);
 
   /* Wait until processes send us a message */
 
@@ -633,16 +660,15 @@ PROCESS_THREAD(buzzer_process, ev, data)
     /* We are checking here for an event from level_process */
     if (ev == sLevel)
     {
-      sender_p = lvl_p;
       if (datum == YELLOW_TRESHOLD)
       {
         //printf ("Buzzer off\n");
-        GPIO_CLR_PIN (BUZZER_PORT_BASE, BUZZER_PIN_MASK);
+        GPIO_CLR_PIN(BUZZER_PORT_BASE, BUZZER_PIN_MASK);
       }
       else if (datum == RED_TRESHOLD)
       {
         //printf ("Buzzer on\n");
-        GPIO_SET_PIN (BUZZER_PORT_BASE, BUZZER_PIN_MASK);
+        GPIO_SET_PIN(BUZZER_PORT_BASE, BUZZER_PIN_MASK);
       }
     }
     //printf ("Buzzer got %u from %s\n", datum, sender_p);
@@ -655,7 +681,7 @@ PROCESS_THREAD(buzzer_process, ev, data)
 }
 /*---------------------------------------------------------------------------*/
 
-PROCESS_THREAD (temp_process, ev, data)
+PROCESS_THREAD(temp_process, ev, data)
 {
   /* This is a variable to store the sample period */
   static uint8_t t_temp;
@@ -665,88 +691,84 @@ PROCESS_THREAD (temp_process, ev, data)
 
   /*  The sensors are already started at boot */
 
-  PROCESS_BEGIN ();
+  PROCESS_BEGIN();
 
   /* Create a pointer to the data, as we are expecting a string we use "char" */
-  static char *parent;
-  //parent = (char * )data;
-
-  //printf ("Temperature process started by %s\n", parent);
 
   /* We need to allocate a numeric process ID to our process */
-  sTemp = process_alloc_event ();
+  sTemp = process_alloc_event();
 
   t_temp = TEMP_SPERIOD; /* temperature sampling period */
   /* Spin the timer */
-  etimer_set (&et_temp, t_temp * CLOCK_SECOND);
+  etimer_set(&et_temp, t_temp * CLOCK_SECOND);
 
   while (1)
   {
 
-    PROCESS_WAIT_EVENT_UNTIL (etimer_expired(&et_temp));
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et_temp));
 
     /* Read the temperature sensor */
     temp = cc2538_temp_sensor.value(CC2538_SENSORS_VALUE_TYPE_CONVERTED);
     printf("temp = %d.%u C\n", temp / 1000, temp % 1000);
 
     /* Send level value to head node */
-    process_post ( &mqtt_demo_process, sTemp, &temp );
+    process_post(&mqtt_demo_process, sTemp, &temp);
     /* Reset timer */
-    etimer_reset (&et_temp);
+    etimer_reset(&et_temp);
   }
 
   PROCESS_END();
 }
 
-PROCESS_THREAD (flow_process, ev, data)
+PROCESS_THREAD(flow_process, ev, data)
 {
   /* This is a variable to store the sample period */
-  static uint8_t  t_flow;
+  static uint8_t t_flow;
   /* These are variables to store the samples */
-//  static uint16_t adc1;
+  //  static uint16_t adc1;
   static uint16_t adc3;
 
-  PROCESS_BEGIN ();
+  PROCESS_BEGIN();
 
   /* Create a pointer to the data, as we are expecting a string we use "char" */
   static char *parent;
-  parent = (char * )data;
+  parent = (char *)data;
 
-  printf ("Water flow process started by %s\n", parent);
+  printf("Water flow process started by %s\n", parent);
 
   /* We need to allocate a numeric process ID to our process */
-  sFlow = process_alloc_event ();
+  sFlow = process_alloc_event();
 
   /* The ADC zoul library configures the on-board enabled ADC channels, more
    * information is provided in the board.h file of the platform
    */
-//  adc_zoul.configure (SENSORS_HW_INIT, ZOUL_SENSORS_ADC1);
-  adc_zoul.configure (SENSORS_HW_INIT, ZOUL_SENSORS_ADC3);
+  //  adc_zoul.configure (SENSORS_HW_INIT, ZOUL_SENSORS_ADC1);
+  adc_zoul.configure(SENSORS_HW_INIT, ZOUL_SENSORS_ADC3);
 
   /* Wait before starting the process */
   t_flow = FLOW_SPERIOD; /* flow sampling period */
-  etimer_set (&et_flow, t_flow * CLOCK_SECOND);
+  etimer_set(&et_flow, t_flow * CLOCK_SECOND);
 
   while (1)
   {
     /* This protothread waits until timeout
      */
-    PROCESS_WAIT_EVENT_UNTIL (etimer_expired(&et_flow));
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et_flow));
 
     /* Read from ADC1 */
-/*    adc1 = adc_zoul.value(ZOUL_SENSORS_ADC1);
+    /*    adc1 = adc_zoul.value(ZOUL_SENSORS_ADC1);
     printf ("ADC1 (water flow) = %u mV\n", adc1);*/
 
     /* Read from ADC3 */
     adc3 = adc_zoul.value(ZOUL_SENSORS_ADC3);
-    printf ("ADC1 (water flow) = %u mV\n", adc3);
+    printf("ADC1 (water flow) = %u mV\n", adc3);
 
-/* Send level value to head node */
-//    process_post ( &send2br_process, sFlow, &adc1 );
-    process_post ( &mqtt_demo_process, sFlow, &adc3 );
+    /* Send level value to head node */
+    //    process_post ( &send2br_process, sFlow, &adc1 );
+    process_post(&mqtt_demo_process, sFlow, &adc3);
 
     /* Reset timer */
-    etimer_reset (&et_flow);
+    etimer_reset(&et_flow);
   }
 
   /* This is the end of the process, we tell the system we are done.  Even if

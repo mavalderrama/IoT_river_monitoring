@@ -1,7 +1,6 @@
 #include "add-on.h"
 
-int
-ipaddr_sprintf(char *buf, uint8_t buf_len, const uip_ipaddr_t *addr)
+uint8_t ipaddr_sprintf(char *buf, uint8_t buf_len, const uip_ipaddr_t *addr)
 {
   uint16_t a;
   uint8_t len = 0;

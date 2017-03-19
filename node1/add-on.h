@@ -71,6 +71,7 @@
 #define NET_CONNECT_PERIODIC        (CLOCK_SECOND >> 2)
 #define NO_NET_LED_DURATION         (NET_CONNECT_PERIODIC >> 1)
 /*---------------------------------------------------------------------------*/
+#define BUFFER_SIZE_TAGNAME 20
 /**
  * \brief Data structure declaration for the MQTT client configuration
  */
@@ -82,3 +83,13 @@ typedef struct mqtt_client_config {
   clock_time_t pub_interval;
   uint16_t broker_port;
 } mqtt_client_config_t;
+
+typedef struct signal_tag_tx
+{
+  char ev_tag1[BUFFER_SIZE_TAGNAME];
+  uint16_t val1;
+  char ev_tag2[BUFFER_SIZE_TAGNAME];
+  uint16_t val2;
+  char ev_tag3[BUFFER_SIZE_TAGNAME];
+  uint16_t val3;
+}signal_tag_tx_t;
