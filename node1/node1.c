@@ -1,40 +1,5 @@
 #include "add-on.h"
-/*---------------------------------------------------------------------------*/
-/*
- * MQTT broker IP address
- */
-static const char *broker_ip = MQTT_DEMO_BROKER_IP_ADDR;
-/*---------------------------------------------------------------------------*/
-static struct timer connection_life;
-static uint8_t connect_attempt;
-/*---------------------------------------------------------------------------*/
-/*Actual state variable*/
-static uint8_t state;
-/*---------------------------------------------------------------------------*/
-/*
- * Buffers for Client ID and Topic.
- * Make sure they are large enough to hold the entire respective string
- */
-static char client_id[BUFFER_SIZE];
-static char pub_topic[BUFFER_SIZE]; //Topic to publish in MQTT Broker
-static char sub_topic[BUFFER_SIZE];
-/*---------------------------------------------------------------------------*/
-/*
- * The main MQTT buffers.
- * We will need to increase if we start publishing more data.
- */
-static struct mqtt_connection conn;
-static char app_buffer[APP_BUFFER_SIZE];
-/*---------------------------------------------------------------------------*/
-static struct mqtt_message *msg_ptr = 0;
-/*Timers Declaration*/
-static struct etimer publish_periodic_timer; //This timer triggers a publish to a topic periodically
-static struct ctimer ct;                     //Publish timer
-static struct etimer et_flow;                //Polling time for Flow process
-static struct etimer et_temp;                //Polling time for Temperature process
-/*---------------------------------------------------------------------------*/
-/*Configuration Structure*/
-static mqtt_client_config_t conf;
+
 /*---------------------------------------------------------------------------*/
 /*Topic Name Declaration*/
 char *vibracion = "Vibracion";
@@ -47,7 +12,7 @@ char *temp = "Temperatura";
 process_event_t sLevel;
 process_event_t sFlow;
 process_event_t sTemp;
-signal_tag_tx_t ev_signals;
+static struct mqtt_message *msg_ptr1 = 0;
 /*---------------------------------------------------------------------------*/
 /*Process and process name declaration*/
 PROCESS(mqtt_demo_process, "MQTT Demo");
@@ -57,58 +22,9 @@ PROCESS(flow_process, "Water flow process");
 PROCESS(temp_process, "Temperature process");
 AUTOSTART_PROCESSES(&mqtt_demo_process, &lvl_process, &buzzer_process, &flow_process, &temp_process); //This is used for start our process
 /*---------------------------------------------------------------------------*/
-/*Check this later*/
-//TODO: Check this pointers for comment
-static char *buf_ptr;
-static uint16_t seq_nr_value = 0;
-/*---------------------------------------------------------------------------*/
-/*this is the string we send to the broker in JSON format
- * if you need to modify this JSON, please validate the format with online tools or whatever.
-*/
-//char tx_json_string[] = "{\"%s\":%u,\"%s\":%u,\"%s\":%u}";//{"Topic1":value1,"Topic2":value2,"Topic3":value3}
-/*---------------------------------------------------------------------------*/
-/*This function is used for turn off the leds on demand*/
-static void
-publish_led_off(void *d)
-{
-  leds_off(LEDS_GREEN);
-}
-/*---------------------------------------------------------------------------*/
-/*This is the way we manage a received publish from cloud*/
-static void
-pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
-            uint16_t chunk_len)
-{
-  printf("Pub Handler: topic='%s' (len=%u), chunk_len=%u\n", topic, topic_len,
-         chunk_len);
-
-  /* If we don't like the length, ignore */
-  if (topic_len != 17 || chunk_len != 1)
-  {
-    printf("Incorrect topic or chunk len. Ignored\n");
-    return;
-  }
-
-  if (strncmp(&topic[13], "leds", 4) == 0)
-  {
-    if (chunk[0] == '1')
-    {
-      leds_on(LEDS_RED);
-      printf("Turning LED RED on!\n");
-    }
-    else if (chunk[0] == '0')
-    {
-      leds_off(LEDS_RED);
-      printf("Turning LED RED off!\n");
-    }
-    return;
-  }
-}
-/*---------------------------------------------------------------------------*/
 /*MQTT event handler*/
 /*In this function the FSM shows you the actual state of the connection with the broker*/
-static void
-mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
+void mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
 {
   printf("We are here in mqtt_event\n");
   switch (event)
@@ -130,18 +46,18 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
   }
   case MQTT_EVENT_PUBLISH:
   {
-    msg_ptr = data;
+    msg_ptr1 = data;
 
     /* Implement first_flag in publish message? */
-    if (msg_ptr->first_chunk)
+    if (msg_ptr1->first_chunk)
     {
-      msg_ptr->first_chunk = 0;
+      msg_ptr1->first_chunk = 0;
       printf("APP - Application received a publish on topic '%s'. Payload "
              "size is %i bytes. Content:\n\n",
-             msg_ptr->topic, msg_ptr->payload_length);
+             msg_ptr1->topic, msg_ptr1->payload_length);
     }
 
-    pub_handler(msg_ptr->topic, strlen(msg_ptr->topic), msg_ptr->payload_chunk, msg_ptr->payload_length);
+    pub_handler(msg_ptr1->topic, strlen(msg_ptr1->topic), msg_ptr1->payload_chunk, msg_ptr1->payload_length);
     break;
   }
   case MQTT_EVENT_SUBACK:
@@ -164,202 +80,10 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
     break;
   }
 }
+
 /*---------------------------------------------------------------------------*/
-/*Topic creation*/
-static int
-construct_pub_topic(void)
-{
-  //int len = snprintf(pub_topic, BUFFER_SIZE, "Specific Ubidots API requirement","Identifier Topic Source");
-  //Take Care BUFFER_SIZE it's more larger than your topic string
-  int len = snprintf(pub_topic, BUFFER_SIZE, "/v1.6/devices/%s", "nodo1");
-
-  if (len < 0 || len >= BUFFER_SIZE)
-  {
-    printf("Pub Topic too large: %d, Buffer %d\n", len, BUFFER_SIZE);
-    return 0;
-  }
-
-  return 1;
-}
-/*---------------------------------------------------------------------------*/
-/*This function creates a topic in our mote*/
-static int
-construct_sub_topic(void)
-{
-  int len = snprintf(sub_topic, BUFFER_SIZE, "zolertia/cmd/%s",
-                     conf.cmd_type); //In this particular case our topic is LEDS
-  if (len < 0 || len >= BUFFER_SIZE)
-  {
-    printf("Sub Topic too large: %d, Buffer %d\n", len, BUFFER_SIZE);
-    return 0;
-  }
-
-  printf("Subscription topic %s\n", sub_topic);
-
-  return 1;
-}
-/*---------------------------------------------------------------------------*/
-/*This function creates an ID based in the client IP*/
-static int
-construct_client_id(void)
-{
-  int len = snprintf(client_id, BUFFER_SIZE, "d:%02x%02x%02x%02x%02x%02x",
-                     linkaddr_node_addr.u8[0], linkaddr_node_addr.u8[1],
-                     linkaddr_node_addr.u8[2], linkaddr_node_addr.u8[5],
-                     linkaddr_node_addr.u8[6], linkaddr_node_addr.u8[7]);
-
-  /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
-  if (len < 0 || len >= BUFFER_SIZE)
-  {
-    printf("Client ID: %d, Buffer %d\n", len, BUFFER_SIZE);
-    return 0;
-  }
-
-  return 1;
-}
-/*---------------------------------------------------------------------------*/
-/*This function is a first stage config process started by "mqtt_demo_process"*/
-static void
-update_config(void)
-{
-  if (construct_client_id() == 0)
-  {
-    /* Fatal error. Client ID larger than the buffer */
-    state = STATE_CONFIG_ERROR;
-    return;
-  }
-
-  if (construct_sub_topic() == 0)
-  {
-    /* Fatal error. Topic larger than the buffer */
-    state = STATE_CONFIG_ERROR;
-    return;
-  }
-
-  if (construct_pub_topic() == 0)
-  {
-    /* Fatal error. Topic larger than the buffer */
-    state = STATE_CONFIG_ERROR;
-    return;
-  }
-
-  /* Reset the counter */
-  seq_nr_value = 0;
-
-  state = STATE_INIT; //Initial state for FSM
-
-  /*
-   * Schedule next timer event ASAP
-   * If we entered an error state then we won't do anything when it fires.
-   * Since the error at this stage is a config error, we will only exit this
-   * error state if we get a new config.
-   */
-  etimer_set(&publish_periodic_timer, 0);
-
-  return;
-}
-/*---------------------------------------------------------------------------*/
-static int
-init_config()
-{
-  /* Populate configuration with default values */
-  memset(&conf, 0, sizeof(mqtt_client_config_t));
-  memcpy(conf.broker_ip, broker_ip, strlen(broker_ip));
-  memcpy(conf.cmd_type, DEFAULT_SUBSCRIBE_CMD_TYPE, 4);
-  conf.broker_port = DEFAULT_BROKER_PORT;
-  conf.pub_interval = DEFAULT_PUBLISH_INTERVAL;
-  return 1;
-}
-/*---------------------------------------------------------------------------*/
-/* Publish MQTT topic in IBM quickstart format */
-static void
-subscribe(void)
-{
-  mqtt_status_t status;
-
-  status = mqtt_subscribe(&conn, NULL, sub_topic, MQTT_QOS_LEVEL_0);
-
-  printf("APP - Subscribing to %s\n", sub_topic);
-  if (status == MQTT_STATUS_OUT_QUEUE_FULL)
-  {
-    printf("APP - Tried to subscribe but command queue was full!\n");
-  }
-}
-/*---------------------------------------------------------------------------*/
-/* This function handle the publish mechanism to the broker
- * The parameters of this function are the names and values to publish.
-*/
-//TODO: Change the list of parameter for a structure.
-//static void publish(uint16_t value1,char *event_name1,uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)
-static void publish()
-{
-  int len = 0;                     //This is the actual size of output buffer
-  int remaining = APP_BUFFER_SIZE; //This is the remaining size of the output buffer
-
-  seq_nr_value++;       //IDK
-  buf_ptr = app_buffer; //This is the output buffer
-
-  int elements_in_struct, size_struct;
-  char *tempc = &ev_signals;
-  uint16_t *tempi = &ev_signals;
-  tempi = tempi + 10;
-  size_struct = sizeof(ev_signals);
-  elements_in_struct = size_struct / (BUFFER_SIZE_TAGNAME + sizeof(uint16_t)); //take care about this type
-  //len = snprintf(buf_ptr, remaining, "{\"%s\":%u,\"%s\":%u,\"%s\":%u}",event_name1,value1,event_name2,value2,event_name3,value3);
-  /*If you modify the line below please check the JSON format with online tools or whatever*/
-  //len = snprintf(buf_ptr, remaining, tx_json_string,event_name1,value1,event_name2,value2,event_name3,value3);
-    int i;
-    for (i = 0; i < elements_in_struct; i++)
-    {
-      if (i == 0)
-      {
-        if(elements_in_struct == 1)
-          len = snprintf(buf_ptr, remaining, "{\"%s\":%u}", tempc, *tempi);
-        else
-          len = snprintf(buf_ptr, remaining, "{\"%s\":%u,", tempc, *tempi);
-      }
-      else if (i == elements_in_struct - 1)
-        len = snprintf(buf_ptr, remaining, "\"%s\":%u}", tempc, *tempi);
-      else
-        len = snprintf(buf_ptr, remaining, "\"%s\":%u,", tempc, *tempi);
-      remaining -= len; //Substracting the actual size of the output buffer
-      buf_ptr += len;   //Positioning the pointer at the end of the buffer
-      tempc = tempc + BUFFER_SIZE_TAGNAME + 2;
-      tempi = tempi + 11;
-    }
-
-  /*If our buffer exceed the maximun size our publish process end*/
-  if (len < 0 || len >= remaining)
-  {
-    printf("Buffer too short. Have %d, need %d + \\0\n", remaining, len);
-    return;
-  }
-  //This function use the Radio to send our data
-  mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
-               strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
-
-  printf("APP - Publish to %s: %s\n", pub_topic, app_buffer);
-}
-/*---------------------------------------------------------------------------*/
-/*This function connects to the broker using the IP provided*/
-static void
-connect_to_broker(void)
-{
-  /* Connect to MQTT server */
-  mqtt_connect(&conn, conf.broker_ip, conf.broker_port,
-               conf.pub_interval * 3);
-
-  state = STATE_CONNECTING; //Actual state of the FSM
-}
-/*---------------------------------------------------------------------------*/
-/*This is the FSM
- * Due to the lack of time, the input parameters are the values of our processes
-*/
-//TODO: Change the input parameters for an structure or a global thing.
-/*static void
-state_machine(uint16_t value1,char *event_name1,
-uint16_t value2,char *event_name2,uint16_t value3,char *event_name3)*/
-static void state_machine()
+/*This is the FSM*/
+void state_machine(void)
 {
   switch (state)
   {
@@ -492,6 +216,7 @@ static void state_machine()
   /* If we didn't return so far, reschedule ourselves */
   etimer_set(&publish_periodic_timer, STATE_MACHINE_PERIODIC);
 }
+
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(mqtt_demo_process, ev, data)
 {
