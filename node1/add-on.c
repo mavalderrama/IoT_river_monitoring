@@ -194,7 +194,7 @@ void publish(void)
       len = snprintf(buf_ptr, remaining, "\"%s\":%u,", tempc, *tempi);
     remaining -= len; //Substracting the actual size of the output buffer
     buf_ptr += len;   //Positioning the pointer at the end of the buffer
-    tempc = tempc + BUFFER_SIZE_TAGNAME + 2;//if we are positioned at the base addr, we need an offset of 22 bytes to reach the next variable name
+    tempc = tempc + BUFFER_SIZE_TAGNAME + 2;//if we are positionated at the base addr, we need an offset of 22 bytes to reach the next variable name
     tempi = tempi + 11;//if we are positioned at the addr of the value addr, we need an offset of 11 integers of 16bits to reach the next variable value
   }
 
