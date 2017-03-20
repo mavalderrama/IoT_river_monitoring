@@ -222,13 +222,13 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
   }
 
   static uint16_t datum;
+  update_config();
 
-  /* These are variables to store strings for each sending process  */
+   /* These are variables to store strings for each sending process  */
   /*This is important to be set, because this values are the topics to be published with the JSON*/
   snprintf(ev_signals.ev_tag1, BUFFER_SIZE_TAGNAME, "Flow");//Flow is the topic
   snprintf(ev_signals.ev_tag2, BUFFER_SIZE_TAGNAME, "Level");//Level is the topic
   snprintf(ev_signals.ev_tag3, BUFFER_SIZE_TAGNAME, "Temp");//Temp is the topic
-  update_config();
 
   while (1)
   {
