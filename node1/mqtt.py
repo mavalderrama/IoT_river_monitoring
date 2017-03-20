@@ -2,7 +2,8 @@
 ### Requires Paho-MQTT package, install by:
 ### pip install paho-mqtt
 
-import paho.mqtt.client as mqtt
+#import paho.mqtt.client as mqtt
+import paho.mqtt.client as paho
 
 # Change accordingly to the MQTT Broker and topic you want to subscribe
 # In the example it would be either "test.mosquitto.org" or "fd00::1" if
@@ -22,7 +23,11 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     print(msg.topic + " " + str(msg.payload))
 
-client = mqtt.Client()
+def on_publish(client, userdata, mid):
+    print(mid.topic + " " + str(msg.payload))
+
+#client = mqtt.Client()
+client = paho.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 

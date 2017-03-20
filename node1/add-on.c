@@ -173,33 +173,30 @@ void publish(void)
   buf_ptr = app_buffer; //This is the output buffer
 
   int elements_in_struct, size_struct;
-  char *tempc = &ev_signals;
-  uint16_t *tempi = &ev_signals;
-  tempi = tempi + 10;
+  char *tempc = &ev_signals;//This is for navigation in the structure
+  uint16_t *tempi = &ev_signals;//This is for navigation in the structure
+  tempi = tempi + 10;//if we are located at the base addr given by the structure pointer, we need an offset of 10 integers of 16bit to reach the variable value.
   size_struct = sizeof(ev_signals);
   elements_in_struct = size_struct / (BUFFER_SIZE_TAGNAME + sizeof(uint16_t)); //take care about this type
-  //len = snprintf(buf_ptr, remaining, "{\"%s\":%u,\"%s\":%u,\"%s\":%u}",event_name1,value1,event_name2,value2,event_name3,value3);
-  /*If you modify the line below please check the JSON format with online tools or whatever*/
-  //len = snprintf(buf_ptr, remaining, tx_json_string,event_name1,value1,event_name2,value2,event_name3,value3);
-    int i;
-    for (i = 0; i < elements_in_struct; i++)
+  int i;
+  for (i = 0; i < elements_in_struct; i++)//This FOR formats the JSON and copy the value given by the events structure.
+  {
+    if (i == 0)
     {
-      if (i == 0)
-      {
-        if(elements_in_struct == 1)
-          len = snprintf(buf_ptr, remaining, "{\"%s\":%u}", tempc, *tempi);
-        else
-          len = snprintf(buf_ptr, remaining, "{\"%s\":%u,", tempc, *tempi);
-      }
-      else if (i == elements_in_struct - 1)
-        len = snprintf(buf_ptr, remaining, "\"%s\":%u}", tempc, *tempi);
+      if(elements_in_struct == 1)
+        len = snprintf(buf_ptr, remaining, "{\"%s\":%u}", tempc, *tempi);
       else
-        len = snprintf(buf_ptr, remaining, "\"%s\":%u,", tempc, *tempi);
-      remaining -= len; //Substracting the actual size of the output buffer
-      buf_ptr += len;   //Positioning the pointer at the end of the buffer
-      tempc = tempc + BUFFER_SIZE_TAGNAME + 2;
-      tempi = tempi + 11;
+        len = snprintf(buf_ptr, remaining, "{\"%s\":%u,", tempc, *tempi);
     }
+    else if (i == elements_in_struct - 1)
+      len = snprintf(buf_ptr, remaining, "\"%s\":%u}", tempc, *tempi);
+    else
+      len = snprintf(buf_ptr, remaining, "\"%s\":%u,", tempc, *tempi);
+    remaining -= len; //Substracting the actual size of the output buffer
+    buf_ptr += len;   //Positioning the pointer at the end of the buffer
+    tempc = tempc + BUFFER_SIZE_TAGNAME + 2;//if we are positioned at the base addr, we need an offset of 22 bytes to reach the next variable name
+    tempi = tempi + 11;//if we are positioned at the addr of the value addr, we need an offset of 11 integers of 16bits to reach the next variable value
+  }
 
   /*If our buffer exceed the maximun size our publish process end*/
   if (len < 0 || len >= remaining)

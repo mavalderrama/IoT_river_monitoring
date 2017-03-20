@@ -71,6 +71,9 @@
 #define NET_CONNECT_PERIODIC        (CLOCK_SECOND >> 2)
 #define NO_NET_LED_DURATION         (NET_CONNECT_PERIODIC >> 1)
 /*---------------------------------------------------------------------------*/
+/*This is the max lenght for a variable name in the JSON
+*If you want to change this value please review the file "add-on.c" lines 175-199
+*/
 #define BUFFER_SIZE_TAGNAME 20
 /*---------------------------------------------------------------------------*/
 struct timer connection_life;
@@ -115,7 +118,12 @@ typedef struct mqtt_client_config {
 
 /*Configuration Structure*/
 mqtt_client_config_t conf;
-
+/*---------------------------------------------------------------------------*/
+/*This structure is used for store the name and the value of variables to be published in the broker*/
+/*The names of this structure can be modified but take care about the type*/
+/*If you want to change the type of the values ie. uint16_t -> uint32_t, please check
+ "add-on.c" line 178 and change "tempi = tempi + 10;" for "tempi = tempi + 5;" 
+ and line 198 "tempi = tempi + 11;" for "tempi = tempi + 6;"*/
 typedef struct signal_tag_tx
 {
   char ev_tag1[BUFFER_SIZE_TAGNAME];
