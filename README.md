@@ -33,6 +33,7 @@ size_struct = sizeof(ev_signals);
 elements_in_struct = size_struct / (BUFFER_SIZE_TAGNAME + sizeof(uint32_t));//Nota2
 ```
 **Nota1:** El valor de 5 es debido a que desde la dirección base, necesitamos recorrer el tamaño equivalente a 5 enteros de 32bit para llegar al campo correspondiente al nombre, esto es debido a que el campo correspondiente al nombre requiere 20 caracteres de 8bit equivalentes a 160bits, si los dividimos en 32bit nos queda el valor de 5.
+
 **Nota2:** Esta línea nos provee la cantidad de pares de datos actualmente en la estructura, por tanto dividimos la cantidad de bytes entregada por size_struct por el tamaño en bytes de un par de datos (Nombre de variable y valor), en este caso sería dividir por **24**, 20 del nombre mas 4 del entero de 32bits.
 
 Posteriormente se debe realizar un procedimiento similar pero para los demás campos de la estructura, en este caso las lineas **197** y **198** lo hacen posible.
@@ -42,4 +43,5 @@ Posteriormente se debe realizar un procedimiento similar pero para los demás ca
  tempi = tempi + 6;//Nota2
 ```
 **Nota1:** Dado que inicialemente **tempc** está declarado como **char** y además estaba ubicado en la dirección base se requiere recorrer el equivalente a 20 bytes correspondiente al nombre y 4 bytes al valor del entero correspondiente al valor de la variable para llegar hasta el siguiente campo de nombre dentro de la estructura.
+
 **Nota2:** Como **tempi** es de tipo entero de 32bit se hace necesario recorrer 5 enteros de 32bit correspondiente a los 20 bytes del nombre, más 1 entero de 32 bit, para un total de 6.
