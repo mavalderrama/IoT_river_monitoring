@@ -1,6 +1,6 @@
 # Instrucciones Repositorio CEAJarillonCali
 
-En este leeme se cubrirán instrucciones básicas para operar el repositorio, es decir, las modificaciones necesarias para compilar y subir el programa a las RE-Motes de Zolertia
+En este leeme se cubrirán instrucciones básicas para operar el repositorio con las modificaciones realizadas por "mavalderrama@javerianacali.edu.co".
 
 # Nota:
 Se asume que el usuario sabe operar el SO Contiki junto con sus procesos.
